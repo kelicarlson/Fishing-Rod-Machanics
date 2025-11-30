@@ -1,0 +1,73 @@
+-- Rod Reciever (LocalScript) Client-Side
+
+-- What this localscript does: It tracks when you hold down the mouse button. When the server tells the client to start casting (using GFD.OnClientInvoke), it starts a fast loop that makes the power meter fill up on screen. The loop stops as soon as you release the mouse button. It then sends the final throwing strength and the mouse's target location back to the server so the bait can be thrown.
+
+local Player = game.Players.LocalPlayer
+local RS = game:GetService("ReplicatedStorage")
+local RF = game:GetService("ReplicatedFirst")
+local CAS = game:GetService("ContextActionService")
+local Terrain = workspace.Terrain
+local Events = RS:WaitForChild("Events")
+local Modules = RS:WaitForChild("Modules")
+local GFD = Events:WaitForChild("Get Fishing Data")
+local Fishing = Events:WaitForChild("Fishing")
+local Fishing_Ended = Events:WaitForChild("Fishing Ended")
+local Components = Modules:WaitForChild("Components")
+local Fishing_Minigame = require(Components["Fishing Minigame"])
+local Temperary_Assets = workspace:WaitForChild("Temperary Assets")
+local Temp_Bates = Temperary_Assets:WaitForChild("Bates")
+local Essential_UI = RF["Essential UI"]
+local Fish_Meter_UI = Essential_UI["Fish Meter UI"]
+local Camera = workspace.CurrentCamera
+local Mouse = Player:GetMouse()
+local RealPos = Vector3.new(0,0,0)
+local MouseHold = false
+-- Takes the current strength and max strength, then adjusts the size of the UI bar.
+local function Set_Meter(Velocity : number, MAX : number, UI)
+	local Bar_Holder = UI["Bar Holder"]
+	local Bar = Bar_Holder.Bar
+	local scale = Velocity / MAX
+	scale = math.min(scale, 1) 
+	Bar.Size = UDim2.new(1, 0, scale, 0)
+end
+-- The Server sends a message (after detecting water contact).
+Fishing.OnClientEvent:Connect(function(Pos, Bate)
+	local Fish_Wait_Time = math.random(4, 10)
+	print(Pos)
+	RealPos = Pos
+	Bate.Position = Pos
+	task.wait(Fish_Wait_Time)
+	print("Fish has been found")
+	local Rod = script.Parent:FindFirstChildWhichIsA("Tool")
+	Fishing_Minigame.Fish(Rod)
+	print("Fishing complete")
+	Fishing_Ended:FireServer()
+end)
+-- The player presses the Left Mouse Button.
+Mouse.Button1Down:Connect(function()
+	MouseHold = true
+end)
+-- The player releases the Left Mouse Button.
+Mouse.Button1Up:Connect(function()
+	MouseHold = false
+end)
+-- This is the function the Server runs on the Client when the player clicks the rod.
+GFD.OnClientInvoke = function(Max_Velocity)
+	print("Fishing")
+	local Velocity_Units = 0
+	local Max_Velocity_Units = Max_Velocity * 100 
+	local New_Meter = Fish_Meter_UI:Clone()
+	repeat 
+		task.wait(0.15)
+		if Velocity_Units < Max_Velocity_Units then 
+			Velocity_Units += 5 
+		end
+		New_Meter.Parent = Player.PlayerGui
+
+		print(Velocity_Units / 100) 
+		Set_Meter(Velocity_Units / 100, Max_Velocity, New_Meter)
+	until not MouseHold
+	local finalVelocity = Velocity_Units / 100
+	New_Meter:Destroy()
+	return {["Vec"] = Camera.CFrame.LookVector, ["MousePos"] = Mouse.Hit.Position}, finalVelocity
+end
