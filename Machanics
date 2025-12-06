@@ -185,3 +185,88 @@ GFD.OnClientInvoke = function(Max_Velocity)
 	New_Meter:Destroy()
 	return {["Vec"] = Camera.CFrame.LookVector, ["MousePos"] = Mouse.Hit.Position}, finalVelocity
 end
+
+-- Fishing Minigame (ModuleScript) Client-Side
+
+-- What this modulescript does: When function Fish() is called it will start a visual representation of reeling in the fish. Once the mini-game is completed, the Result() function will be called from the rarity system modulescript, that will return back the fish the player reeled in.
+
+local Fishing_Minigame = {}
+
+local RS = game:GetService("ReplicatedStorage")
+local RF = game:GetService("ReplicatedFirst")
+local TS = game:GetService("TweenService")
+
+-- These are some tween settings that are used to increase/decrease the size of a UI element
+local Tween_Settings = TweenInfo.new(
+	0.05,
+	Enum.EasingStyle.Sine,
+	Enum.EasingDirection.InOut,
+	0,
+	true,
+	0
+)
+
+-- Variables that contain data needed to start the fishing mini-game.
+local Essential_UI = RF:WaitForChild("Essential UI")
+local Fish_Game_UI = Essential_UI:WaitForChild("Fish Game UI")
+
+local Modules = RS:WaitForChild("Modules")
+
+local Data_Config = Modules:WaitForChild("Data Config")
+local Game_Data = Modules:WaitForChild("Game Data")
+
+local Rarity_System = require(Data_Config:WaitForChild("Rarity System"))
+local Fishing_Rod_Data = require(Game_Data["Fishing Rod Data"])
+local Fish_Data = require(Game_Data:WaitForChild("Fish Data"))
+
+local Mouse = game.Players.LocalPlayer:GetMouse()
+
+-- This function clones an already existing UI needed to show a visualization of how far the player is to completing the fishing mini-game.
+local function New_UI()
+	local New = Fish_Game_UI:Clone()
+	
+	New.Parent = game.Players.LocalPlayer.PlayerGui
+	
+	return New
+end
+
+-- This function is used to start the fishing minigame, and it will return the fish that the player has caught using the rarity system module script, which makes the better fish harder to get.
+function Fishing_Minigame.Fish(Fishing_Rod)
+	local UI = New_UI()
+	
+	local connection
+	
+	local originalSize = UI["Action Text"].Size
+	
+	local Resize = UDim2.new(
+		originalSize.X.Scale * 1.25, originalSize.X.Offset,
+		originalSize.Y.Scale * 1.25, originalSize.Y.Offset
+	)
+	
+	local Tween = TS:Create(UI["Action Text"], Tween_Settings, {Size = Resize})
+	
+	local Bar_Holder = UI["Bar Holder"]
+	local Bar = Bar_Holder["Bar"]
+	
+	local Clicks = 0
+	local MaxClicks = 100
+	
+	connection = Mouse.Button1Down:Connect(function()
+		Clicks += 10
+		Tween:Play()
+	end)
+	
+	repeat 
+		task.wait(0.1)
+		Bar.Size = UDim2.new(Clicks/MaxClicks, 0, 1, 0)
+	until Clicks == MaxClicks
+	
+	local Fish = Rarity_System.Result(Fishing_Rod_Data[Fishing_Rod.Name]["Fishes"])
+	print("You caught a "..Fish..", it is worth "..Fish_Data[Fish]["Value"].." coins!")
+	
+	UI:Destroy()
+	
+	connection:Disconnect()
+end
+
+return Fishing_Minigame
